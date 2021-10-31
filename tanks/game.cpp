@@ -13,7 +13,7 @@ struct bullet {
 	int x_length = 10;
 	int y_length = 25;
 	int x, y;
-	int speedY, speedX, speed = 10;
+	int speedY, speedX, speed = 50;
 	Sprite sbullet;
 	bool is_draw;
 	int team;
@@ -38,6 +38,7 @@ struct tanks{
 void check_colision(bullet& bull, int height, int width);
 void check_shooting(bullet& bull, std::vector<tanks>& tanks_arr);
 void check_blocks(bullet& bull);
+
 int main() {
 	
 	int window_height = 1000, window_width = 1920; 
@@ -66,11 +67,12 @@ int main() {
 	tbullet_left.loadFromFile("resource\\bullet_left.png");
 	tbullet_down.loadFromFile("resource\\bullet_down.png");
 
-	Texture wood_block1, wood_block2, wood_block3, dark_block;
-	wood_block1.loadFromFile("resource\\wood_block1.png");
-	wood_block2.loadFromFile("resource\\wood_block2.png");
-	wood_block3.loadFromFile("resource\\wood_block3.png");
+	Texture wood_block, wood_broken1, wood_broken2, dark_block;
 	dark_block.loadFromFile("resource\\dark_block.png");
+	wood_block.loadFromFile("resource\\wood_block.png");
+	wood_broken1.loadFromFile("resource\\wood_broken1.png");
+	wood_broken2.loadFromFile("resource\\wood_broken2.png");
+	
 	Sprite smap;
 
 
@@ -112,7 +114,7 @@ int main() {
 			if (tank.x > 0 && (tank.x > tank1.x + tank.size + tank.speed || tank.x + tank.size < tank1.x || tank.y + tank.size < tank1.y || tank.y > tank1.y + tank.size)) {
 				for (int i = 0; i < HEIGHT_MAP; i++)
 					for (int j = 0; j < WIDTH_MAP; j++) {
-						if (TileMap[i][j] != 's') {
+						if (TileMap[i][j] == ' ') {
 							continue;
 						}
 						int block_x = j * block_size, block_y = i * block_size;
@@ -136,7 +138,7 @@ int main() {
 			if (window_width - tank.size > tank.x && (tank1.x + tank.size <  tank.x || tank.x + tank.size + tank.speed < tank1.x || tank.y + tank.size < tank1.y || tank.y > tank1.y + tank.size)) {
 				for (int i = 0; i < HEIGHT_MAP; i++)
 					for (int j = 0; j < WIDTH_MAP; j++) {
-						if (TileMap[i][j] != 's') {
+						if (TileMap[i][j] == ' ') {
 							continue;
 						}
 						int block_x = j * 100, block_y = i * 100;
@@ -159,7 +161,7 @@ int main() {
 				
 				for (int i = 0; i < HEIGHT_MAP; i++)
 					for (int j = 0; j < WIDTH_MAP; j++) {
-						if (TileMap[i][j] != 's') {
+						if (TileMap[i][j] == ' ') {
 							continue;
 						}
 						int block_x = j * 100, block_y = i * 100;
@@ -181,7 +183,7 @@ int main() {
 			if (window_height - tank.size > tank.y && (tank.y + tank.size + tank.speed < tank1.y || tank.y > tank1.y + tank.size || tank.x > tank1.x + tank.size || tank.x + tank.size < tank1.x)) {
 				for (int i = 0; i < HEIGHT_MAP; i++)
 					for (int j = 0; j < WIDTH_MAP; j++) {
-						if (TileMap[i][j] != 's') {
+						if (TileMap[i][j] == ' ') {
 							continue;
 						}
 						int block_x = j * 100, block_y = i * 100;
@@ -203,7 +205,7 @@ int main() {
 			if (tank1.x > 0 && (tank1.x > tank.x + tank1.size + tank1.speed || tank1.x + tank1.size < tank.x || tank1.y + tank1.size < tank.y || tank1.y > tank.y + tank1.size)) {
 				for (int i = 0; i < HEIGHT_MAP; i++)
 					for (int j = 0; j < WIDTH_MAP; j++) {
-						if (TileMap[i][j] != 's') {
+						if (TileMap[i][j] == ' ') {
 							continue;
 						}
 						int block_x = j * block_size, block_y = i * block_size;
@@ -226,7 +228,7 @@ int main() {
 			if (window_width - tank1.size > tank1.x && (tank.x + tank1.size < tank1.x || tank1.x + tank1.size + tank1.speed < tank.x || tank1.y + tank1.size < tank.y || tank1.y > tank.y + tank1.size)) {
 				for (int i = 0; i < HEIGHT_MAP; i++)
 					for (int j = 0; j < WIDTH_MAP; j++) {
-						if (TileMap[i][j] != 's') {
+						if (TileMap[i][j] == ' ') {
 							continue;
 						}
 						int block_x = j * 100, block_y = i * 100;
@@ -249,7 +251,7 @@ int main() {
 
 				for (int i = 0; i < HEIGHT_MAP; i++)
 					for (int j = 0; j < WIDTH_MAP; j++) {
-						if (TileMap[i][j] != 's') {
+						if (TileMap[i][j] == ' ') {
 							continue;
 						}
 						int block_x = j * 100, block_y = i * 100;
@@ -271,7 +273,7 @@ int main() {
 			if (window_height - tank1.size > tank1.y && (tank1.y + tank1.size + tank1.speed < tank.y || tank1.y > tank.y + tank1.size || tank1.x > tank.x + tank1.size || tank1.x + tank1.size < tank.x)) {
 				for (int i = 0; i < HEIGHT_MAP; i++)
 					for (int j = 0; j < WIDTH_MAP; j++) {
-						if (TileMap[i][j] != 's') {
+						if (TileMap[i][j] == ' ') {
 							continue;
 						}
 						int block_x = j * 100, block_y = i * 100;
@@ -383,21 +385,34 @@ int main() {
 
 		for (int i = 0; i < HEIGHT_MAP; i++)
 			for (int j = 0; j < WIDTH_MAP; j++) {
-				if (TileMap[i][j] == 's') smap.setTexture(wood_block3);
-				else smap.setTexture(dark_block);
+				switch (TileMap[i][j]) {
+				case ' ':
+					smap.setTexture(dark_block);
+					break;
+				case 's':
+					smap.setTexture(wood_block);
+					break;
+				case 'r':
+					smap.setTexture(wood_broken1);
+					break;
+				case 'q':
+					smap.setTexture(wood_broken2);
+					break;
+				}
 
 				smap.setPosition(j * block_size, i * block_size);
 				window.draw(smap);
 			}
 		for (auto& bull : bullets) {
-			check_colision(bull, window_height, window_width);
-			check_shooting(bull, tanks_arr);
-			check_blocks(bull);
 			if (bull.is_draw) {
 				bull.x += bull.speedX;
 				bull.y += bull.speedY;
 				bull.sbullet.setPosition(bull.x, bull.y);
 				window.draw(bull.sbullet);
+
+				check_colision(bull, window_height, window_width);
+				check_shooting(bull, tanks_arr);
+				check_blocks(bull);
 			}
 		}
 		
@@ -434,6 +449,9 @@ void check_shooting(bullet& bull, std::vector<tanks>& tanks_arr) {
 	}
 }
 
+
+
+
 /*type_of_movement:
 	вверх - 1
 	вниз - 2
@@ -443,7 +461,7 @@ void check_shooting(bullet& bull, std::vector<tanks>& tanks_arr) {
 void check_blocks(bullet& bull) {
 	for (int i = 0; i < HEIGHT_MAP; i++) {
 		for (int j = 0; j < WIDTH_MAP; j++) {
-			if (TileMap[i][j] != 's')
+			if (TileMap[i][j] == ' ')
 				continue;
 			int block_x = j * 100;
 			int block_y = i * 100;
@@ -451,25 +469,69 @@ void check_blocks(bullet& bull) {
 			case 1:
 				if (bull.x + bull.x_length > block_x && bull.x < block_x + 100 && bull.y <= block_y + 100 && bull.y + bull.y_length > block_y) {
 					bull.is_draw = false;
-					TileMap[i][j] = ' ';
+
+					switch (TileMap[i][j]) {
+					case 's':
+						TileMap[i][j] = 'r';
+						break;
+					case 'r':
+						TileMap[i][j] = 'q';
+						break;
+					case 'q':
+						TileMap[i][j] = ' ';
+						break;
+					}
 				}
 				break;
 			case 2:
 				if (bull.x + bull.x_length > block_x && bull.x < block_x + 100 && bull.y + bull.y_length >= block_y && bull.y + bull.y_length < block_y + 100) {
 					bull.is_draw = false;
-					TileMap[i][j] = ' ';
+
+					switch (TileMap[i][j]) {
+					case 's':
+						TileMap[i][j] = 'r';
+						break;
+					case 'r':
+						TileMap[i][j] = 'q';
+						break;
+					case 'q':
+						TileMap[i][j] = ' ';
+						break;
+					}
 				}
 				break;
 			case 3:
 				if (bull.y + bull.y_length > block_y && bull.y < block_y + 100 && bull.x <= block_x + 100 && bull.x + bull.x_length > block_x) {
 					bull.is_draw = false;
-					TileMap[i][j] = ' ';
+
+					switch (TileMap[i][j]) {
+					case 's':
+						TileMap[i][j] = 'r';
+						break;
+					case 'r':
+						TileMap[i][j] = 'q';
+						break;
+					case 'q':
+						TileMap[i][j] = ' ';
+						break;
+					}
 				}
 				break;
 			case 4:
 				if (bull.y + bull.y_length > block_y && bull.y < block_y + 100 && bull.x + bull.x_length >= block_x && bull.x + bull.x_length < block_x + 100) {
 					bull.is_draw = false;
-					TileMap[i][j] = ' ';
+
+					switch (TileMap[i][j]) {
+					case 's':
+						TileMap[i][j] = 'r';
+						break;
+					case 'r':
+						TileMap[i][j] = 'q';
+						break;
+					case 'q':
+						TileMap[i][j] = ' ';
+						break;
+					}
 				}
 				break;
 			}
@@ -477,3 +539,5 @@ void check_blocks(bullet& bull) {
 		}
 	}
 }
+
+
