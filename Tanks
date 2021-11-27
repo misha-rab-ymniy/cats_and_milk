@@ -1,0 +1,1309 @@
+#include <SFML/Graphics.hpp>
+#include <ctime>
+#include <chrono>
+#include <windows.h>
+#include <vector>
+#include <iostream>
+#include "map.h"
+#include "Map1.h"
+#include "Map2.h"
+
+using namespace sf;
+
+struct bullet {
+	int type_of_movement = 1;
+	int x_length = 10;
+	int y_length = 25;
+	int x, y;
+	int speedY, speedX, speed = 25;
+	Sprite sbullet;
+	bool is_draw;
+	int team;
+	/*type_of_movement:
+	вверх - 1
+	вниз - 2
+	влево - 3
+	вправо - 4*/
+};
+
+struct tanks {
+	bool alive = true;
+	int hp = 3;
+	int orientation;
+	int default_orientation;
+	double x, y;
+	double shoot_time = -100;
+	double dead_time = 0;
+	int raise_time = 2;
+	double reload = 0.35;
+	double speed = 5;
+	int spawn_x, spawn_y;
+	bool move_ability = true;
+	Sprite stank;
+	int team;
+	int size = 90;
+	bool immortality = false;
+	bool heart = true;
+	Sprite sheart;
+	int smoothing = 12;
+	bool base_life = true;
+	char base_block;
+	bool is_choose_map = true;
+};
+struct buff {
+	double start = 100;
+	double life = 5;
+	double boost_time = 2;
+	int reload_degree = 2;
+	int boost_degree = 2;
+	Sprite sbuff;
+};
+struct bases {
+	char block;
+	std::vector <std::pair< int, int>> bricks_xy = {};
+};
+double game_time = 100;
+
+void check_colision(bullet& bull, int height, int width);
+void check_shooting(bullet& bull, tanks& t);
+void check_blocks(bullet& bull, bases& base, bases& enemy_base);
+void death(tanks& tank);
+void create_buff(int& buff_x, int& buff_y);
+void buffs_choose(tanks& tank, int& buff_choose, Texture& shild_heart);
+void game_over(RenderWindow& window);
+void pause_menu(RenderWindow& window, tanks& tank, tanks& enemy_tank, bases& base, bases& enemy_base);
+void menu(RenderWindow& window, tanks& tank, tanks& enemy_tank, bases& base, bases& enemy_base);
+void choose_map(tanks& tank, tanks& enemy_tank, RenderWindow& window, bases& base, bases& enemy_base);
+bool move_up_down(tanks& tank, tanks& enemy_tank, int& buff_x, bool& tank_located);
+bool move_left_right(tanks& tank, tanks& enemy_tank, int& buff_y, const bool& tank_located);
+
+int main() {
+	int window_height = 1080, window_width = 1920;
+	int heart_width = 42;
+	std::vector<bullet> bullets = {};
+	
+	//std::vector<buff_time> times = {};
+	std::vector<buff> buffs = {};
+
+	const int fps = 200;
+
+	int block_size = 100;
+	RenderWindow window(VideoMode(window_width, window_height), "tanks", Style::Fullscreen);
+	window.setMouseCursorVisible(false);
+	
+
+	Image icon;
+	icon.loadFromFile("resource\\tank_up.png");
+
+	window.setIcon(90, 90, icon.getPixelsPtr());
+	window.setMouseCursorVisible(false);
+	Texture ttank_up, ttank_right, ttank_left, ttank_down, enemy_ttank_up, enemy_ttank_down, enemy_ttank_left, enemy_ttank_right;
+	ttank_up.loadFromFile("resource\\tank_up.png");
+	ttank_right.loadFromFile("resource\\tank_right.png");
+	ttank_left.loadFromFile("resource\\tank_left.png");
+	ttank_down.loadFromFile("resource\\tank_down.png");
+
+	enemy_ttank_up.loadFromFile("resource\\enemy_tank_up.png");
+	enemy_ttank_right.loadFromFile("resource\\enemy_tank_right.png");
+	enemy_ttank_left.loadFromFile("resource\\enemy_tank_left.png");
+	enemy_ttank_down.loadFromFile("resource\\enemy_tank_down.png");
+
+	Texture tbullet_up, tbullet_right, tbullet_left, tbullet_down;
+	tbullet_up.loadFromFile("resource\\bullet_up.png");
+	tbullet_right.loadFromFile("resource\\bullet_right.png");
+	tbullet_left.loadFromFile("resource\\bullet_left.png");
+	tbullet_down.loadFromFile("resource\\bullet_down.png");
+
+	Texture wood_block, wood_broken1, wood_broken2, dark_block, brick_block, base_block, base_block_broken;
+	dark_block.loadFromFile("resource\\dark_block.png");
+	wood_block.loadFromFile("resource\\wood_block.png");
+	wood_broken1.loadFromFile("resource\\wood_broken1.png");
+	wood_broken2.loadFromFile("resource\\wood_broken2.png");
+	brick_block.loadFromFile("resource\\brick.png");
+	base_block.loadFromFile("resource\\base_block.png");
+	base_block_broken.loadFromFile("resource\\base_block_broken.png");
+
+
+	Texture buff_speed, buff_shild, buff_reload, buff_brick;
+	buff_speed.loadFromFile("resource\\buff_speed.png");
+	buff_shild.loadFromFile("resource\\buff_shild.png");
+	buff_reload.loadFromFile("resource\\buff_reload.png");
+	buff_brick.loadFromFile("resource\\buff_brick.png");
+
+	Sprite smap;
+
+	Texture heart, enemy_heart, shild_heart;
+	heart.loadFromFile("resource\\enemy_hearth.png");
+	enemy_heart.loadFromFile("resource\\hearth.png");
+	shild_heart.loadFromFile("resource\\shild_heart.png");
+
+	tanks tank, enemy_tank;
+	tank.stank.setTexture(enemy_ttank_left);
+	enemy_tank.stank.setTexture(ttank_right);
+
+	tank.sheart.setTexture(heart);
+	enemy_tank.sheart.setTexture(enemy_heart);
+
+	buff buff1, buff2, buff3, buff4;
+	buffs.push_back(buff1);
+	buffs.push_back(buff2);
+	buffs.push_back(buff3);
+	buffs.push_back(buff4);
+
+	bases base, enemy_base;
+
+	srand(time(NULL));
+	int buff_y = 0, buff_x = 0;
+	int buff_choose = 0;
+
+	menu(window, tank, enemy_tank, base, enemy_base);
+
+	while (window.isOpen()) {
+		//проверка на закрытие
+		Event event;
+		while (window.pollEvent(event)) {
+			if (event.type == Event::Closed || Keyboard::isKeyPressed(Keyboard::Tab))
+				window.close();
+			if (Keyboard::isKeyPressed(Keyboard::Escape)) {
+				pause_menu(window, tank, enemy_tank, base, enemy_base);
+			}
+			if (base.block != 'y' || enemy_base.block != 'x') {
+				game_over(window);
+				menu(window, tank, enemy_tank, base, enemy_base);
+				tank.stank.setTexture(enemy_ttank_left);
+				enemy_tank.stank.setTexture(ttank_right);
+			}
+		}
+		//tank2 movement
+		if (!tank.alive) {
+			if (game_time - tank.dead_time > tank.raise_time) {
+				tank.hp = 3;
+				tank.alive = true;
+				tank.x = tank.spawn_x;
+				tank.y = tank.spawn_y;
+				switch (tank.orientation) {
+				case 1:
+					tank.stank.setTexture(enemy_ttank_up);
+					break;
+				case 2:
+					tank.stank.setTexture(enemy_ttank_down);
+					break;
+				case 3:
+					tank.stank.setTexture(enemy_ttank_left);
+					break;
+				case 4:
+					tank.stank.setTexture(enemy_ttank_right);
+				}
+				tank.stank.setPosition(tank.x, tank.y);
+				window.draw(tank.stank);
+			}
+		}
+		if (!enemy_tank.alive) {
+			if (game_time - enemy_tank.dead_time > enemy_tank.raise_time) {
+				enemy_tank.hp = 3;
+				enemy_tank.alive = true;
+				enemy_tank.x = enemy_tank.spawn_x;
+				enemy_tank.y = enemy_tank.spawn_y;
+				switch (enemy_tank.orientation) {
+				case 1:
+					enemy_tank.stank.setTexture(ttank_up);
+					break;
+				case 2:
+					enemy_tank.stank.setTexture(ttank_down);
+					break;
+				case 3:
+					enemy_tank.stank.setTexture(ttank_left);
+					break;
+				case 4:
+					enemy_tank.stank.setTexture(ttank_right);
+				}
+				enemy_tank.stank.setPosition(enemy_tank.x, enemy_tank.y);
+				window.draw(enemy_tank.stank);
+			}
+		}
+
+		if (tank.alive) {
+			if (TileMap[buff_y][buff_x] == 'l' && !(tank.x > 10 + buff_x * block_size + block_size - 20 || tank.x + tank.size < 10 + buff_x * block_size + 20|| tank.y + tank.size < buff_y * block_size + 20 || tank.y > buff_y * block_size + block_size - 20)) {
+				TileMap[buff_y][buff_x] = ' ';
+				buffs_choose(tank, buff_choose, shild_heart);
+				buff3.start = game_time;
+			}
+			if (Keyboard::isKeyPressed(Keyboard::Left)) {
+				tank.orientation = 3;
+				tank.stank.setTexture(enemy_ttank_left);
+				if (tank.x > 0 && (tank.x > enemy_tank.x + tank.size + tank.speed || tank.x + tank.size < enemy_tank.x || tank.y + tank.size < enemy_tank.y || tank.y > enemy_tank.y + tank.size)) {
+					
+					for (int i = 0; i < HEIGHT_MAP; i++)
+						for (int j = 0; j < WIDTH_MAP; j++) {
+							if (TileMap[i][j] == ' ' || TileMap[i][j] == 'l') {
+								continue;
+							}
+							int block_x = 10 + j * block_size, block_y = i * block_size;
+							if (!(tank.x > block_x + block_size + tank.speed || tank.x + tank.size < block_x || tank.y + tank.size < block_y|| tank.y > block_y + block_size)) {
+								if (tank.y + tank.size < block_y + tank.smoothing && tank.y + tank.size > block_y && TileMap[i - 1][j] == ' ' &&
+									/*move_left_right(tank, enemy_tank, buff_y, false)*/
+									(enemy_tank.y + enemy_tank.size < block_y - tank.size - 1 || enemy_tank.y > block_y || enemy_tank.x > tank.x + tank.size || enemy_tank.x + enemy_tank.size < tank.x)) {
+									tank.y = block_y - tank.size - 1;
+								}
+								else if (tank.y < block_y + block_size && tank.y > block_y + block_size - tank.smoothing && TileMap[i + 1][j] == ' ' &&
+									/*move_left_right(tank, enemy_tank, buff_y, 1)*/
+									(enemy_tank.y > block_y + block_size + tank.size + 1 || enemy_tank.x > tank.x + tank.size || enemy_tank.x + enemy_tank.size < tank.x)) {
+									tank.y = block_y + block_size + 1;
+								}
+								else if (!(tank.x > block_x + block_size + tank.speed)) {
+									tank.x = block_x + block_size + 1;
+									tank.move_ability = false;
+								}
+							}
+						}
+					if (tank.move_ability) {
+						tank.x -= tank.speed;
+					}
+					tank.stank.setPosition(tank.x, tank.y);
+					tank.move_ability = true;
+				}
+
+
+			}
+
+			else if (Keyboard::isKeyPressed(Keyboard::Right)) {
+				tank.orientation = 4;
+				tank.stank.setTexture(enemy_ttank_right);
+
+				if (window_width - tank.size > tank.x && (enemy_tank.x + tank.size < tank.x || tank.x + tank.size + tank.speed < enemy_tank.x || tank.y + tank.size < enemy_tank.y || tank.y > enemy_tank.y + tank.size)) {
+					for (int i = 0; i < HEIGHT_MAP; i++)
+						for (int j = 0; j < WIDTH_MAP; j++) {
+							if (TileMap[i][j] == ' ' || TileMap[i][j] == 'l') {
+								continue;
+							}
+							int block_x = 10 + j * 100, block_y = i * 100;
+							if (!(block_x + block_size < tank.x || tank.x + tank.size + tank.speed < block_x || tank.y + tank.size < block_y || tank.y > block_y + block_size)) {
+								if (tank.y + tank.size < block_y + tank.smoothing && tank.y + tank.size > block_y && TileMap[i - 1][j] == ' ') {
+									tank.y = block_y - tank.size - 1;
+								}
+								else if (tank.y < block_y + block_size && tank.y > block_y + block_size - tank.smoothing && TileMap[i + 1][j] == ' ') {
+									tank.y = block_y + block_size + 1;
+								}
+								else if (!(tank.x + tank.size + tank.speed < block_x)) {
+									tank.x = block_x - tank.size - 1;
+									tank.move_ability = false;
+								}
+							}
+						}
+					if (tank.move_ability) {
+						tank.x += tank.speed;
+					}
+					tank.stank.setPosition(tank.x, tank.y);
+					tank.move_ability = true;
+				}
+			}
+
+			else if (Keyboard::isKeyPressed(Keyboard::Up)) {
+				tank.orientation = 1;
+				tank.stank.setTexture(enemy_ttank_up);
+				if (tank.y > 0 && (tank.y + tank.size < enemy_tank.y || tank.x > enemy_tank.x + tank.size || tank.x + tank.size < enemy_tank.x || tank.y > enemy_tank.y + tank.size + tank.speed)) {
+
+					for (int i = 0; i < HEIGHT_MAP; i++)
+						for (int j = 0; j < WIDTH_MAP; j++) {
+							if (TileMap[i][j] == ' ' || TileMap[i][j] == 'l') {
+								continue;
+							}
+							int block_x = 10 + j * 100, block_y = i * 100;
+							if (!(tank.y + tank.size < block_y || tank.x > block_x + block_size || tank.x + tank.size < block_x || tank.y > block_y + block_size + tank.speed)) {
+								if (tank.x < block_x + block_size && tank.x > block_x + block_size - tank.smoothing && TileMap[i][j + 1] == ' ') {
+									tank.x = block_x + block_size + 1;
+								}
+								else if (tank.x + tank.size > block_x && tank.x + tank.size < block_x + tank.smoothing && TileMap[i][j - 1] == ' ') {
+									tank.x = block_x - tank.size - 1;
+								}
+								else if (!(tank.y > block_y + block_size + tank.speed)) {
+									tank.y = block_y + block_size + 1;
+									tank.move_ability = false;
+								}
+							}
+						}
+					if (tank.move_ability) {
+						tank.y -= tank.speed;
+					}
+					tank.stank.setPosition(tank.x, tank.y);
+					tank.move_ability = true;
+				}
+			}
+
+			else if (Keyboard::isKeyPressed(Keyboard::Down)) {
+				tank.orientation = 2;
+				tank.stank.setTexture(enemy_ttank_down);
+				if (window_height - tank.size > tank.y && (tank.y + tank.size + tank.speed < enemy_tank.y || tank.y > enemy_tank.y + tank.size || tank.x > enemy_tank.x + tank.size || tank.x + tank.size < enemy_tank.x)) {
+					for (int i = 0; i < HEIGHT_MAP; i++)
+						for (int j = 0; j < WIDTH_MAP; j++) {
+							if (TileMap[i][j] == ' ' || TileMap[i][j] == 'l') {
+								continue;
+							}
+							int block_x = 10 + j * 100, block_y = i * 100;
+							if (!(tank.y + tank.size + tank.speed < block_y || tank.y > block_y + block_size || tank.x > block_x + block_size || tank.x + tank.size < block_x)) {
+								if (tank.x < block_x + block_size && tank.x > block_x + block_size - tank.smoothing && TileMap[i][j + 1] == ' ') {
+									tank.x = block_x + block_size + 1;
+								}
+								else if (tank.x + tank.size > block_x && tank.x + tank.size < block_x + tank.smoothing && TileMap[i][j - 1] == ' ') {
+									tank.x = block_x - tank.size - 1;
+								}
+								else if (!(tank.y + tank.size + tank.speed < block_y)) {
+									tank.y = block_y - tank.size - 1;
+									tank.move_ability = false;
+								}
+							}
+						}
+					if (tank.move_ability) {
+						tank.y += tank.speed;
+					}
+					tank.stank.setPosition(tank.x, tank.y);
+					tank.move_ability = true;
+				}
+			}
+		}
+		//tank1 movement
+		if (enemy_tank.alive) {
+			if (TileMap[buff_y][buff_x] == 'l' && !(enemy_tank.x > 10 + buff_x * block_size + block_size + 1 || enemy_tank.x + enemy_tank.size < 10 + buff_x * block_size - 1 || enemy_tank.y + enemy_tank.size < buff_y * block_size - 1 || enemy_tank.y > buff_y * block_size + block_size + 1)) {
+				TileMap[buff_y][buff_x] = ' ';
+				buffs_choose(enemy_tank, buff_choose, shild_heart);
+				buff3.start = game_time;
+			}
+			if (Keyboard::isKeyPressed(Keyboard::A)) {
+				enemy_tank.orientation = 3;
+				enemy_tank.stank.setTexture(ttank_left);
+				if (enemy_tank.x > 0 && (enemy_tank.x > tank.x + enemy_tank.size + enemy_tank.speed || enemy_tank.x + enemy_tank.size < tank.x || enemy_tank.y + enemy_tank.size < tank.y || enemy_tank.y > tank.y + enemy_tank.size)) {
+					for (int i = 0; i < HEIGHT_MAP; i++)
+						for (int j = 0; j < WIDTH_MAP; j++) {
+							if (TileMap[i][j] == ' ') {
+								continue;
+							}
+							int block_x = 10 + j * block_size, block_y = i * block_size;
+							if (!(enemy_tank.x > block_x + block_size + enemy_tank.speed || enemy_tank.x + enemy_tank.size < block_x || enemy_tank.y + enemy_tank.size < block_y || enemy_tank.y > block_y + block_size)) {
+								if (enemy_tank.y + enemy_tank.size < block_y + enemy_tank.smoothing && enemy_tank.y + enemy_tank.size > block_y && TileMap[i - 1][j] == ' ') {
+									enemy_tank.y = block_y - enemy_tank.size - 1;
+								}
+								else if (enemy_tank.y < block_y + block_size && enemy_tank.y > block_y + block_size - enemy_tank.smoothing && TileMap[i + 1][j] == ' ') {
+									enemy_tank.y = block_y + block_size + 1;
+								}
+								else if (!(enemy_tank.x + enemy_tank.size + enemy_tank.speed < block_x)) {
+									enemy_tank.x = block_x + block_size + 1;
+									enemy_tank.move_ability = false;
+								}
+							}
+						}
+					if (enemy_tank.move_ability) {
+						enemy_tank.x -= enemy_tank.speed;
+					}
+					enemy_tank.stank.setPosition(enemy_tank.x, enemy_tank.y);
+					enemy_tank.move_ability = true;
+				}
+			}
+
+			else if (Keyboard::isKeyPressed(Keyboard::D)) {
+				enemy_tank.orientation = 4;
+				enemy_tank.stank.setTexture(ttank_right);
+
+				if (window_width - enemy_tank.size > enemy_tank.x && (tank.x + enemy_tank.size < enemy_tank.x || enemy_tank.x + enemy_tank.size + enemy_tank.speed < tank.x || enemy_tank.y + enemy_tank.size < tank.y || enemy_tank.y > tank.y + enemy_tank.size)) {
+					for (int i = 0; i < HEIGHT_MAP; i++)
+						for (int j = 0; j < WIDTH_MAP; j++) {
+							if (TileMap[i][j] == ' ') {
+								continue;
+							}
+							int block_x = 10 + j * 100, block_y = i * 100;
+							if (!(block_x + block_size < enemy_tank.x || enemy_tank.x + enemy_tank.size + enemy_tank.speed < block_x || enemy_tank.y + enemy_tank.size < block_y || enemy_tank.y > block_y + block_size)) {
+								if (enemy_tank.y + enemy_tank.size < block_y + enemy_tank.smoothing && enemy_tank.y + enemy_tank.size > block_y && TileMap[i - 1][j] == ' ') {
+									enemy_tank.y = block_y - enemy_tank.size - 1;
+								}
+								else if (enemy_tank.y < block_y + block_size && enemy_tank.y > block_y + block_size - enemy_tank.smoothing && TileMap[i + 1][j] == ' ') {
+									enemy_tank.y = block_y + block_size + 1;
+								}
+								else if (!(enemy_tank.x + enemy_tank.size + enemy_tank.speed < block_x)) {
+									enemy_tank.x = block_x - enemy_tank.size - 1;
+									enemy_tank.move_ability = false;
+								}
+							}
+						}
+					if (enemy_tank.move_ability) {
+						enemy_tank.x += enemy_tank.speed;
+					}
+					enemy_tank.stank.setPosition(enemy_tank.x, enemy_tank.y);
+					enemy_tank.move_ability = true;
+				}
+			}
+
+			else if (Keyboard::isKeyPressed(Keyboard::W)) {
+				enemy_tank.orientation = 1;
+				enemy_tank.stank.setTexture(ttank_up);
+				if (enemy_tank.y > 0 && (enemy_tank.y + enemy_tank.size < tank.y || enemy_tank.x > tank.x + enemy_tank.size || enemy_tank.x + enemy_tank.size < tank.x || enemy_tank.y > tank.y + enemy_tank.size + enemy_tank.speed)) {
+
+					for (int i = 0; i < HEIGHT_MAP; i++)
+						for (int j = 0; j < WIDTH_MAP; j++) {
+							if (TileMap[i][j] == ' ') {
+								continue;
+							}
+							int block_x = 10 + j * 100, block_y = i * 100;
+							if (!(enemy_tank.y + enemy_tank.size < block_y || enemy_tank.x > block_x + block_size || enemy_tank.x + enemy_tank.size < block_x || enemy_tank.y > block_y + block_size + enemy_tank.speed)) {
+								if (enemy_tank.x < block_x + block_size && enemy_tank.x > block_x + block_size - enemy_tank.smoothing && TileMap[i][j + 1] == ' ' ) {
+									enemy_tank.x = block_x + block_size + 1;
+								}
+								else if (enemy_tank.x + enemy_tank.size > block_x && enemy_tank.x + enemy_tank.size < block_x + enemy_tank.smoothing && TileMap[i][j - 1] == ' ') {
+									enemy_tank.x = block_x - enemy_tank.size - 1;
+								}
+								else if (!(enemy_tank.y > block_y + block_size + enemy_tank.speed)) {
+									enemy_tank.y = block_y + block_size + 1;
+									enemy_tank.move_ability = false;
+								}
+							}
+						}
+					if (enemy_tank.move_ability) {
+						enemy_tank.y -= enemy_tank.speed;
+					}
+					enemy_tank.stank.setPosition(enemy_tank.x, enemy_tank.y);
+					enemy_tank.move_ability = true;
+				}
+			}
+
+			else if (Keyboard::isKeyPressed(Keyboard::S)) {
+				enemy_tank.orientation = 2;
+				enemy_tank.stank.setTexture(ttank_down);
+				if (window_height - enemy_tank.size > enemy_tank.y && (enemy_tank.y + enemy_tank.size + enemy_tank.speed < tank.y || enemy_tank.y > tank.y + enemy_tank.size || enemy_tank.x > tank.x + enemy_tank.size || enemy_tank.x + enemy_tank.size < tank.x)) {
+					for (int i = 0; i < HEIGHT_MAP; i++)
+						for (int j = 0; j < WIDTH_MAP; j++) {
+							if (TileMap[i][j] == ' ') {
+								continue;
+							}
+							int block_x = 10 + j * 100, block_y = i * 100;
+							if (!(enemy_tank.y + enemy_tank.size + enemy_tank.speed < block_y || enemy_tank.y > block_y + block_size || enemy_tank.x > block_x + block_size || enemy_tank.x + enemy_tank.size < block_x)) {
+								if (enemy_tank.x < block_x + block_size && enemy_tank.x > block_x + block_size - enemy_tank.smoothing && TileMap[i][j + 1] == ' ') {
+									enemy_tank.x = block_x + block_size + 1;
+								}
+								else if (enemy_tank.x + enemy_tank.size > block_x && enemy_tank.x + enemy_tank.size < block_x + enemy_tank.smoothing && TileMap[i][j - 1] == ' ') {
+									enemy_tank.x = block_x - enemy_tank.size - 1;
+								}
+								else if (!(enemy_tank.y + enemy_tank.size + enemy_tank.speed < block_y)) {
+									enemy_tank.y = block_y - tank.size - 1;
+									enemy_tank.move_ability = false;
+								}
+							}
+						}
+					if (enemy_tank.move_ability) {
+						enemy_tank.y += enemy_tank.speed;
+					}
+					enemy_tank.stank.setPosition(enemy_tank.x, enemy_tank.y);
+					enemy_tank.move_ability = true;
+				}
+			}
+		}
+		//стрельба второго
+		if (tank.alive) {
+			if (Keyboard::isKeyPressed(Keyboard::RControl) && game_time - tank.shoot_time > tank.reload) {
+				bullet bull;
+				bull.type_of_movement = tank.orientation;
+				bull.team = tank.team;
+				switch (bull.type_of_movement) {
+				case 1:
+					bull.x_length = 10;
+					bull.y_length = 25;
+					bull.x = tank.x + tank.size / 2 - bull.x_length / 2;
+					bull.y = tank.y;
+					bull.speedX = 0;
+					bull.speedY = -bull.speed;
+					bull.sbullet.setTexture(tbullet_up);
+					break;
+				case 2:
+					bull.x_length = 10;
+					bull.y_length = 25;
+					bull.x = tank.x + tank.size / 2 - bull.x_length / 2;
+					bull.y = tank.y + tank.size - bull.y_length;
+					bull.speedX = 0;
+					bull.speedY = bull.speed;
+					bull.sbullet.setTexture(tbullet_down);
+					break;
+				case 3:
+					bull.x_length = 25;
+					bull.y_length = 10;
+					bull.x = tank.x + bull.y_length;
+					bull.y = tank.y + tank.size / 2 - bull.y_length / 2;
+					bull.speedX = -bull.speed;
+					bull.speedY = 0;
+					bull.sbullet.setTexture(tbullet_left);
+					break;
+				case 4:
+					bull.x_length = 25;
+					bull.y_length = 10;
+					bull.x = tank.x + tank.size - bull.x_length;
+					bull.y = tank.y + tank.size / 2 - bull.y_length / 2;
+					bull.speedX = bull.speed;
+					bull.speedY = 0;
+					bull.sbullet.setTexture(tbullet_right);
+					break;
+				}
+				bull.is_draw = true;
+				bullets.push_back(bull);
+				tank.shoot_time = game_time;
+			}
+		}
+
+		if (game_time - buff1.start > buff1.life) {
+			buff_choose = rand() % 4;
+			if (game_time - buff4.start < 6) {
+				buff_choose = rand() % 3;
+			}
+			if (buff_choose == 3) {
+				buff4.start = game_time;
+			}
+			create_buff(buff_x, buff_y);
+			buff1.start = game_time;
+		}
+		else if (buff_choose == 3 && game_time - buff3.start > buff3.life / buff3.boost_time) {
+			for (int i = 0; i < 10; i++) {
+				int x = base.bricks_xy[i].first;
+				int y = base.bricks_xy[i].second;
+				if (TileMap[x][y] != ' ') {
+					TileMap[x][y] = 'b';
+				}
+			}
+		}
+		if (!tank.alive || ((buff_choose == 0 || buff_choose == 1 || buff_choose == 2) && game_time - buff3.start > buff3.life / buff3.boost_time)) {
+			tank.speed = 5;
+			tank.reload = 0.35;
+			tank.immortality = false;
+			tank.sheart.setTexture(heart);
+		}
+		if (!enemy_tank.alive || ((buff_choose == 0 || buff_choose == 1 || buff_choose == 2) && game_time - buff3.start > buff3.life / buff3.boost_time)) {
+			enemy_tank.speed = 5;
+			enemy_tank.reload = 0.35;
+			enemy_tank.immortality = false;
+			enemy_tank.sheart.setTexture(enemy_heart);
+		}
+		if (TileMap[buff_y][buff_x] == 'l' && game_time - buff1.start > buff2.life / buff2.boost_time) {
+			TileMap[buff_y][buff_x] = ' ';
+		}
+
+
+		//стрельба первого
+		if (enemy_tank.alive) {
+			if (Keyboard::isKeyPressed(Keyboard::Space) && game_time - enemy_tank.shoot_time > enemy_tank.reload) {
+				bullet bull1;
+				bull1.type_of_movement = enemy_tank.orientation;
+				bull1.team = enemy_tank.team;
+				switch (bull1.type_of_movement) {
+				case 1:
+					bull1.x_length = 10;
+					bull1.y_length = 25;
+					bull1.x = enemy_tank.x + enemy_tank.size / 2 - bull1.x_length / 2;
+					bull1.y = enemy_tank.y;
+					bull1.speedX = 0;
+					bull1.speedY = -bull1.speed;
+					bull1.sbullet.setTexture(tbullet_up);
+					break;
+				case 2:
+					bull1.x_length = 10;
+					bull1.y_length = 25;
+					bull1.x = enemy_tank.x + enemy_tank.size / 2 - bull1.x_length / 2;
+					bull1.y = enemy_tank.y + enemy_tank.size - bull1.y_length;
+					bull1.speedX = 0;
+					bull1.speedY = bull1.speed;
+					bull1.sbullet.setTexture(tbullet_down);
+					break;
+				case 3:
+					bull1.x_length = 25;
+					bull1.y_length = 10;
+					bull1.x = enemy_tank.x + bull1.y_length;
+					bull1.y = enemy_tank.y + enemy_tank.size / 2 - bull1.y_length / 2;
+					bull1.speedX = -bull1.speed;
+					bull1.speedY = 0;
+					bull1.sbullet.setTexture(tbullet_left);
+					break;
+				case 4:
+					bull1.x_length = 25;
+					bull1.y_length = 10;
+					bull1.x = enemy_tank.x + enemy_tank.size - bull1.x_length;
+					bull1.y = enemy_tank.y + enemy_tank.size / 2 - bull1.y_length / 2;
+					bull1.speedX = bull1.speed;
+					bull1.speedY = 0;
+					bull1.sbullet.setTexture(tbullet_right);
+					break;
+				}
+				bullets.push_back(bull1);
+				enemy_tank.shoot_time = game_time;
+
+			}
+		}
+
+		//перерисовка окна(вынести в функцию)
+		window.clear();
+
+		for (int i = 0; i < HEIGHT_MAP; i++)
+			for (int j = 0; j < WIDTH_MAP; j++) {
+				switch (TileMap[i][j]) {
+				case ' ':
+					smap.setTexture(dark_block);
+					break;
+				case 'l':
+					switch (buff_choose) {
+					case 0:
+						smap.setTexture(buff_speed);
+						break;
+					case 1:
+						smap.setTexture(buff_shild);
+						break;
+					case 2:
+						smap.setTexture(buff_reload);
+						break;
+					case 3:
+						smap.setTexture(buff_brick);
+						break;
+					}
+					break;
+				case 's':
+					smap.setTexture(wood_block);
+					break;
+				case 'r':
+					smap.setTexture(wood_broken1);
+					break;
+				case 'q':
+					smap.setTexture(wood_broken2);
+					break;
+				case 'b':
+					smap.setTexture(brick_block);
+					break;
+				case 'x':
+					smap.setTexture(base_block);
+					break;
+				case 'y':
+					smap.setTexture(base_block);
+					break;
+				case '>':
+					smap.setTexture(base_block_broken);
+					break;
+				case 'k':
+					smap.setTexture(brick_block);
+					break;
+				}
+				smap.setPosition(10 + j * block_size, i * block_size);
+				window.draw(smap);
+			}
+		for (bullet& bull : bullets) {
+			if (bull.is_draw) {
+				bull.x += bull.speedX;
+				bull.y += bull.speedY;
+				bull.sbullet.setPosition(bull.x, bull.y);
+				window.draw(bull.sbullet);
+
+				check_colision(bull, window_height, window_width);
+				check_shooting(bull, enemy_tank);
+				check_shooting(bull, tank);
+				check_blocks(bull, base, enemy_base);
+			}
+		}
+
+		window.draw(tank.stank);
+		window.draw(enemy_tank.stank);
+		for (int i = 0; i < enemy_tank.hp; i++) {
+			enemy_tank.sheart.setPosition(i * heart_width, 0);
+			window.draw(enemy_tank.sheart);
+		}
+		for (int i = 0; i < tank.hp; i++) {
+			tank.sheart.setPosition(window_width - (i + 1) * heart_width, 0);
+			window.draw(tank.sheart);
+		}
+		window.display();
+		//установка частоты обновления
+		Sleep(1000 / fps);
+		game_time += 1.0 / fps;
+		
+	}
+
+	return 0;
+}
+
+void check_colision(bullet& bull, int height, int width) {
+	if (bull.x > width || bull.x * bull.y < 0 || bull.y > height) {
+		bull.is_draw = false;
+	}
+}
+
+void death(tanks& tank) {
+	tank.alive = false;
+	tank.dead_time = game_time;
+	tank.x = 1920;
+	tank.y = 0;
+	tank.stank.setPosition(tank.x, tank.y);
+	tank.orientation = tank.default_orientation;
+}
+
+void check_shooting(bullet& bull, tanks& t) {//ccylka
+	if (!t.alive)
+		return;
+	bool a_inside, b_inside, c_inside, d_inside;
+	if (bull.team != t.team && bull.is_draw) {
+		a_inside = bull.x > t.x && bull.x < t.x + t.size && bull.y > t.y && bull.y < t.y + t.size;
+		b_inside = bull.x + bull.x_length > t.x && bull.x + bull.x_length< t.x + t.size && bull.y > t.y && bull.y < t.y + t.size;
+		c_inside = bull.x + bull.x_length > t.x && bull.x + bull.x_length< t.x + t.size && bull.y + bull.y_length > t.y && bull.y + bull.y_length < t.y + t.size;
+		d_inside = bull.x > t.x && bull.x < t.x + t.size && bull.y + bull.y_length > t.y && bull.y + bull.y_length < t.y + t.size;
+		if (a_inside || b_inside || c_inside || d_inside) {
+			if(!t.immortality)
+				t.hp--;
+			if (t.hp <= 0) {
+				death(t);
+			}
+			bull.is_draw = false;
+		}
+	}
+}
+
+/*type_of_movement:
+	вверх - 1
+	вниз - 2
+	влево - 3
+	вправо - 4*/
+
+void check_blocks(bullet& bull, bases& base, bases& enemy_base) {
+	for (int i = 0; i < HEIGHT_MAP; i++) {
+		for (int j = 0; j < WIDTH_MAP; j++) {
+			if (TileMap[i][j] == ' ' || TileMap[i][j] == 'l' || TileMap[i][j] == '>')
+				continue;
+			int block_x = 10 + j * 100;
+			int block_y = i * 100;
+			switch (bull.type_of_movement) {
+			case 1:
+				if (bull.x + bull.x_length > block_x && bull.x < block_x + 100 && bull.y <= block_y + 100 && bull.y + bull.y_length > block_y) {
+					bull.is_draw = false;
+
+					switch (TileMap[i][j]) {
+					case 'x':
+						TileMap[i][j] = '>';
+						enemy_base.block = '>';
+						break;
+					case 'y':
+						TileMap[i][j] = '>';
+						base.block = '>';
+						break;
+					case 's':
+						TileMap[i][j] = 'r';
+						break;
+					case 'r':
+						TileMap[i][j] = 'q';
+						break;
+					case 'q':
+						TileMap[i][j] = ' ';
+						break;
+					}
+				}
+				break;
+			case 2:
+				if (bull.x + bull.x_length > block_x && bull.x < block_x + 100 && bull.y + bull.y_length >= block_y && bull.y + bull.y_length < block_y + 100) {
+					bull.is_draw = false;
+
+					switch (TileMap[i][j]) {
+					case 'x':
+						TileMap[i][j] = '>';
+						enemy_base.block = '>';
+						break;
+					case 'y':
+						TileMap[i][j] = '>';
+						base.block = '>';
+						break;
+					case 's':
+						TileMap[i][j] = 'r';
+						break;
+					case 'r':
+						TileMap[i][j] = 'q';
+						break;
+					case 'q':
+						TileMap[i][j] = ' ';
+						break;
+					}
+				}
+				break;
+			case 3:
+				if (bull.y + bull.y_length > block_y && bull.y < block_y + 100 && bull.x <= block_x + 100 && bull.x + bull.x_length > block_x) {
+					bull.is_draw = false;
+
+					switch (TileMap[i][j]) {
+					case 'x':
+						TileMap[i][j] = '>';
+						enemy_base.block = '>';
+						break;
+					case 'y':
+						TileMap[i][j] = '>';
+						base.block = '>';
+						break;
+					case 's':
+						TileMap[i][j] = 'r';
+						break;
+					case 'r':
+						TileMap[i][j] = 'q';
+						break;
+					case 'q':
+						TileMap[i][j] = ' ';
+						break;
+					}
+				}
+				break;
+			case 4:
+				if (bull.y + bull.y_length > block_y && bull.y < block_y + 100 && bull.x + bull.x_length >= block_x && bull.x + bull.x_length < block_x + 100) {
+					bull.is_draw = false;
+
+					switch (TileMap[i][j]) {
+					case 'x':
+						TileMap[i][j] = '>';
+						enemy_base.block = '>';
+						break;
+					case 'y':
+						TileMap[i][j] = '>';
+						base.block = '>';
+						break;
+					case 's':
+						TileMap[i][j] = 'r';
+						break;
+					case 'r':
+						TileMap[i][j] = 'q';
+						break;
+					case 'q':
+						TileMap[i][j] = ' ';
+						break;
+					}
+				}
+				break;
+			}
+
+		}
+	}
+}
+
+void create_buff(int& buff_x, int& buff_y) {
+	bool void_place = true;
+	while (void_place) {
+		void_place = false;
+		buff_y = rand() % 11;
+		buff_x = rand() % 19;
+		for (int i = 0; i < HEIGHT_MAP; i++) {
+			for (int j = 0; j < WIDTH_MAP; j++) {
+				if (TileMap[buff_y][buff_x] != ' ') {
+					void_place = true;
+					break;
+				}
+			}
+			if (TileMap[buff_y][buff_x] != ' ') {
+				break;
+			}
+		}
+	}
+	TileMap[buff_y][buff_x] = 'l';
+
+}
+
+void buffs_choose(tanks& tank, int& buff_choose, Texture& shild_heart) {
+	switch (buff_choose) {
+	case 0:
+		tank.speed = 10;
+		break;
+	case 1:
+		tank.immortality = true;
+		tank.sheart.setTexture(shild_heart);
+		break;
+	case 2:
+		tank.reload = 0.1;
+		break;
+	case 3:
+		for (int i = 0; i < HEIGHT_MAP; i++) {
+			for (int j = 0; j < WIDTH_MAP; j++) {
+				if (TileMap[i][j] == 'b') {
+					TileMap[i][j] = 's';
+				}
+			}
+		}
+		break;
+	}
+
+}
+
+void menu(RenderWindow& window, tanks& tank, tanks& enemy_tank, bases& base, bases& enemy_base) {
+	Texture menuTexture1, menuTexture2, menuTexture3, aboutTexture, menuBackground, menuArrow;
+	menuTexture1.loadFromFile("resource\\menu_button1.png");
+	menuTexture2.loadFromFile("resource\\menu_button2.png");
+	menuTexture3.loadFromFile("resource\\menu_button3.png");
+	aboutTexture.loadFromFile("resource\\menu_about.png");
+	menuBackground.loadFromFile("resource\\menu_back.jpg");
+	menuArrow.loadFromFile("resource\\menuArrow.png");
+
+	Sprite menu1(menuTexture1), menu2(menuTexture2), menu3(menuTexture3), about(aboutTexture), menuBg(menuBackground), menuArr(menuArrow);
+	bool isMenu = 1;
+	int menuNum = 1;
+	int arr_speed = 60;
+	int xArr = 940, yArr = 516;
+	double menu_time = game_time;
+
+	menu1.setPosition(960, 480);
+	menu2.setPosition(960, 540);
+	menu3.setPosition(960, 600);
+	menuArr.setPosition(xArr, yArr);
+
+	window.draw(menuBg);
+	window.draw(menu1);
+	window.draw(menu2);
+	window.draw(menu3);
+	window.draw(menuArr);
+	window.display();
+
+	window.setMouseCursorVisible(false);
+
+	while (isMenu)
+	{
+		menu1.setColor(Color::White);
+		menu2.setColor(Color::White);
+		menu3.setColor(Color::White);
+		window.clear(Color(129, 181, 221));
+
+		window.draw(menuBg);
+		window.draw(menu1);
+		window.draw(menu2);
+		window.draw(menu3);
+		window.draw(menuArr);
+		window.display();
+
+		if (Keyboard::isKeyPressed(Keyboard::Down)) {
+			if (menuNum == 3) {
+				menuNum = 1;
+				yArr = 516;
+				menuArr.setPosition(xArr, yArr);
+			}
+			else {
+				++menuNum;
+				yArr += arr_speed;
+				menuArr.setPosition(xArr, yArr);
+			}
+			window.draw(menuBg);
+			window.draw(menu1);
+			window.draw(menu2);
+			window.draw(menu3);
+			window.draw(menuArr);
+			window.display();
+		}
+		if (Keyboard::isKeyPressed(Keyboard::Up)) {
+			if (menuNum == 1) {
+				menuNum = 3;
+				yArr = 636;
+				menuArr.setPosition(xArr, yArr);
+			}
+			else {
+				--menuNum;
+				yArr -= arr_speed;
+				menuArr.setPosition(xArr, yArr);
+			}
+			window.draw(menuBg);
+			window.draw(menu1);
+			window.draw(menu2);
+			window.draw(menu3);
+			window.draw(menuArr);
+			window.display();
+		}
+		if (Keyboard::isKeyPressed(Keyboard::Enter) && menu_time - game_time > 5) {
+			if (menuNum == 1) {
+				choose_map(tank, enemy_tank, window, base, enemy_base);
+				isMenu = tank.is_choose_map;
+			}
+			else if (menuNum == 2) {
+				window.draw(about);
+				window.display();
+				while (!(Keyboard::isKeyPressed(Keyboard::Escape)));
+			}
+			else if (menuNum == 3) {
+				window.close();
+				isMenu = false;
+			}
+			window.display();
+		}
+		Sleep(1000 / 9);
+		menu_time += 1000 / 9;
+	}
+}
+
+void pause_menu(RenderWindow& window, tanks& tank, tanks& enemy_tank, bases& base, bases& enemy_base) {
+
+	Texture pause_button, pauseArrow, pause_back, exit_pause, control_pause, contin_pause, controlling_page;
+	pause_button.loadFromFile("resource\\pause.png");
+	pauseArrow.loadFromFile("resource\\menuArrow.png");
+	pause_back.loadFromFile("resource\\pause_back.png");
+	contin_pause.loadFromFile("resource\\continue.png");
+	exit_pause.loadFromFile("resource\\exit.png");
+	control_pause.loadFromFile("resource\\controlling.png");
+	controlling_page.loadFromFile("resource\\control.png");
+
+	Sprite pause(pause_button), pauseArr(pauseArrow), back(pause_back), exit(exit_pause), control(control_pause), contin(contin_pause), control_page(controlling_page);
+
+	bool isPause = true;
+	int pauseNum = 1;
+	int arr_speed = 60;
+	int xArr = 920, yArr = 516;
+	double pause_time = game_time;
+
+	pause.setPosition(930, 400);
+	contin.setPosition(930, 480);
+	control.setPosition(930, 540);
+	exit.setPosition(930, 600);
+
+	back.setPosition(800, 300);
+	pauseArr.setPosition(xArr, yArr);
+	window.draw(back);
+	window.draw(pause);
+	window.draw(exit);
+	window.draw(control);
+	window.draw(contin);
+	window.draw(pauseArr);
+	window.display();
+
+	while (isPause) {
+
+		contin.setColor(Color::White);
+		control.setColor(Color::White);
+		exit.setColor(Color::White);
+
+		if (Keyboard::isKeyPressed(Keyboard::Escape) && pause_time - game_time > 20) {
+			isPause = false;
+		}
+		if (Keyboard::isKeyPressed(Keyboard::Down)) {
+			if (pauseNum == 3) {
+				pauseNum = 1;
+				yArr = 516;
+				pauseArr.setPosition(xArr, yArr);
+			}
+			else {
+				++pauseNum;
+				yArr += arr_speed;
+				pauseArr.setPosition(xArr, yArr);
+			}
+			window.draw(back);
+			window.draw(pause);
+			window.draw(exit);
+			window.draw(control);
+			window.draw(contin);
+			window.draw(pauseArr);
+			window.display();
+		}
+		if (Keyboard::isKeyPressed(Keyboard::Up)) {
+			if (pauseNum == 1) {
+				pauseNum = 3;
+				yArr = 636;
+				pauseArr.setPosition(xArr, yArr);
+			}
+			else {
+				--pauseNum;
+				yArr -= arr_speed;
+				pauseArr.setPosition(xArr, yArr);
+			}
+			window.draw(back);
+			window.draw(pause);
+			window.draw(exit);
+			window.draw(control);
+			window.draw(contin);
+			window.draw(pauseArr);
+			window.display();
+		}
+		if (Keyboard::isKeyPressed(Keyboard::Enter)) {
+			if (pauseNum == 1) {
+				isPause = false;
+			}
+			else if (pauseNum == 2) {
+				window.draw(control_page);
+				window.display();
+				while (!Keyboard::isKeyPressed(Keyboard::Escape));
+			}
+			else if (pauseNum == 3) {
+				isPause = false;
+				menu(window, tank, enemy_tank, base, enemy_base);
+			}
+			window.display();
+			
+		}
+
+		Sleep(1000 / 8);
+		pause_time += 1000 / 8;
+	}
+}
+
+void game_over(RenderWindow& window) {
+	//sf::Texture texture;
+	//texture.create(window.getSize().x, window.getSize().y);
+	//texture.update(window);
+	//if (texture.copyToImage().saveToFile("resource\\game_over1.png"))
+	//{
+	//	std::cout << "screenshot saved to " << "resource\\game_over1.png" << std::endl;
+	//}
+	Texture game_over;
+	game_over.loadFromFile("resource\\game_over.png");
+	Sprite sgame_over, sgame_over1;
+	//sgame_over1.setTexture(texture);
+	//sgame_over1.setPosition(0, 0);
+
+	sgame_over.setTexture(game_over);
+	sgame_over.setPosition(0, 0);
+	bool isMenu = 1;
+	double menu_time = game_time;
+	
+	//window.draw(sgame_over1);
+	window.draw(sgame_over);
+
+	while (isMenu)
+	{
+		if (Keyboard::isKeyPressed(Keyboard::F1) &&  menu_time - game_time > 10) {
+			isMenu = false;
+		}
+		//window.draw(sgame_over1);
+		window.draw(sgame_over);
+		window.display();
+		Sleep(1000 / 9);
+		menu_time += 1000 / 9;
+	}
+}
+void choose_map(tanks& tank, tanks& enemy_tank, RenderWindow& window, bases& base, bases& enemy_base) {
+	/*orientation:
+	вверх - 1
+	вниз - 2
+	влево - 3
+	вправо - 4*/
+	Texture map1, map2, choose_map_background;
+	map1.loadFromFile("resource\\map1.png");
+	map2.loadFromFile("resource\\map2.png");
+	choose_map_background.loadFromFile("resource\\menu_back.jpg");
+
+	Sprite Map1(map1), Map2(map2), choose_map_bg(choose_map_background), choosen_map1(map1), choosen_map2(map2);
+	Map1.setPosition(250, 273);
+	Map1.setScale(0.25f, 0.25f);
+
+	Map2.setPosition(900, 300);
+	Map2.setScale(0.2f, 0.2f);
+	choosen_map2.setPosition(850, 273);
+	choosen_map2.setScale(0.25f, 0.25f);
+
+
+
+	bool isChoose = 1;
+	int chooseNum = 1;
+	double menu_time = game_time;
+
+	window.draw(choose_map_bg);
+	window.draw(Map1);
+	window.draw(Map2);
+	window.display();
+
+	while (isChoose) {
+		
+		if (Keyboard::isKeyPressed(Keyboard::Right)) {
+			if (chooseNum == 2) {
+				chooseNum = 1;
+				Map1.setScale(0.25f, 0.25f);
+				Map1.setPosition(250, 273);
+				Map2.setScale(0.2f, 0.2f);
+				Map2.setPosition(900, 300);
+			}
+			else {
+				++chooseNum;
+				Map1.setScale(0.2f, 0.2f);
+				Map1.setPosition(300, 300);
+				Map2.setScale(0.25f, 0.25f);
+				Map2.setPosition(850, 273);
+			}
+			window.draw(choose_map_bg);
+			window.draw(Map1);
+			window.draw(Map2);
+			window.display();
+		}
+		if (Keyboard::isKeyPressed(Keyboard::Left)) {
+			if (chooseNum == 1) {
+				chooseNum = 2;
+				Map1.setScale(0.2f, 0.2f);
+				Map1.setPosition(300, 300);
+				Map2.setScale(0.25f, 0.25f);
+				Map2.setPosition(850, 273);
+			}
+			else {
+				--chooseNum;
+				Map1.setScale(0.25f, 0.25f);
+				Map1.setPosition(250, 273);
+				Map2.setScale(0.2f, 0.2f);
+				Map2.setPosition(900, 300);
+			}
+			window.draw(choose_map_bg);
+			window.draw(Map1);
+			window.draw(Map2);
+			window.display();
+		}
+		if (Keyboard::isKeyPressed(Keyboard::Enter) && menu_time - game_time > 5) {
+			if (chooseNum == 1) {
+				tank.orientation = 3;
+				tank.default_orientation = 3;
+				enemy_tank.orientation = 4;
+				enemy_tank.default_orientation = 4;
+				enemy_tank.team = 1;
+				enemy_tank.x = enemy_tank.spawn_x = 211, enemy_tank.y = enemy_tank.spawn_y = 500, tank.x = tank.spawn_x = 1619, tank.y = tank.spawn_y = 500;
+				enemy_tank.stank.setPosition(enemy_tank.x, enemy_tank.y);
+				tank.stank.setPosition(tank.x, enemy_tank.y);
+				tank.team = 2;
+				tank.hp = 3;
+				enemy_tank.hp = 3;
+				for (int i = 0; i < HEIGHT_MAP; i++)
+					for (int j = 0; j < WIDTH_MAP; j++) {
+						TileMap[i][j] = TileMap1[i][j];
+					}
+			}
+			else if (chooseNum == 2) {
+				tank.orientation = 3;
+				tank.default_orientation = 3;
+				enemy_tank.orientation = 4;
+				enemy_tank.default_orientation = 4;
+				enemy_tank.team = 1;
+				enemy_tank.x = enemy_tank.spawn_x = 211, enemy_tank.y = enemy_tank.spawn_y = 500, tank.x = tank.spawn_x = 1619, tank.y = tank.spawn_y = 500;
+				enemy_tank.stank.setPosition(enemy_tank.x, enemy_tank.y);
+				tank.stank.setPosition(tank.x, enemy_tank.y);
+				tank.team = 2;
+				tank.hp = 3;
+				enemy_tank.hp = 3;
+				for (int i = 0; i < HEIGHT_MAP; i++)
+					for (int j = 0; j < WIDTH_MAP; j++) {
+						TileMap[i][j] = TileMap2[i][j];
+					}
+			}
+			tank.is_choose_map = false;
+			isChoose = false;
+			window.clear();
+		}
+		if (Keyboard::isKeyPressed(Keyboard::Escape)) {
+			isChoose = false;
+			tank.is_choose_map = true;
+		}
+		Sleep(1000 / 5);
+		menu_time += 1000 / 5;
+	}
+	
+	for (int i = 0; i < HEIGHT_MAP; i++)
+		for (int j = 0; j < WIDTH_MAP; j++) {
+			if (TileMap[i][j] == 'x') {
+				enemy_base.block = TileMap[i][j];
+			}
+			if (TileMap[i][j] == 'y') {
+				base.block = TileMap[i][j];
+			}
+		}
+
+	for (int i = 0; i < HEIGHT_MAP; i++)
+		for (int j = 0; j < WIDTH_MAP; j++) {
+			if (TileMap[i][j] == 'b') {
+				base.bricks_xy.push_back(std::make_pair(i, j));
+			}
+		}
+}
+
+bool move_left_right(tanks& tank, tanks& enemy_tank, int& block_y, const bool& tank_located) {
+	if (/*!tank_located && enemy_tank.y + enemy_tank.size < block_y - tank.size - 1 || tank.y + tank.size < enemy_tank.y || tank.x > enemy_tank.x + enemy_tank.size || tank.x + tank.size < enemy_tank.x
+		*/
+		!tank_located && (enemy_tank.y + enemy_tank.size < block_y - tank.size - 1 || enemy_tank.y > block_y || enemy_tank.x > tank.x + tank.size || enemy_tank.x + enemy_tank.size < tank.x)) {
+		return true;
+	}
+	//else if (tank_located && enemy_tank.y > block_y + 100 + tank.size + 1 || enemy_tank.x > tank.x + tank.size || enemy_tank.x + enemy_tank.size < tank.x) {
+	//	return true;
+	//}
+	return false;
+}
